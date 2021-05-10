@@ -28,6 +28,9 @@ export const control = {
         let elements = db[type] || { data: [], lastId: 0 }
         elements.lastId++;
         obj = { _id: elements.lastId, ...obj };
+        Object.keys(obj).forEach(key =>
+            obj[key] === undefined || obj[key] === undefined ? delete obj[key] : {}
+        );
         elements.data.push(obj);
         db[type] = elements
         await this.writeDb(db);
@@ -41,7 +44,28 @@ export const control = {
         if (elements) {
             let elementId = elements.data.findIndex(el => el._id == id);
             if (elementId !== -1) {
+                elements.data[elementId] = { _id: elements.data[elementId]._id, ...obj };
+                Object.keys(elements.data[elementId]).forEach(key =>
+                    elements.data[elementId][key] === undefined || elements.data[elementId][key] === null ? delete elements.data[elementId][key] : {}
+                );
+                db[type] = elements
+                await this.writeDb(db);
+                return elements.data[elementId]
+            }
+        }
+    },
+
+    async patch(type, obj, id) {
+        const db = await this.readDb();
+        delete (obj._id)
+        let elements = db[type]
+        if (elements) {
+            let elementId = elements.data.findIndex(el => el._id == id);
+            if (elementId !== -1) {
                 elements.data[elementId] = { ...elements.data[elementId], ...obj };
+                Object.keys(elements.data[elementId]).forEach(key =>
+                    elements.data[elementId][key] === undefined || elements.data[elementId][key] === null ? delete elements.data[elementId][key] : {}
+                );
                 db[type] = elements
                 await this.writeDb(db);
                 return elements.data[elementId]
