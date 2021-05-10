@@ -73,6 +73,21 @@ export const control = {
         }
     },
 
+    async delete(type, id) {
+        const db = await this.readDb();
+        let elements = db[type]
+        if (elements) {
+            let elementId = elements.data.findIndex(el => el._id == id);
+            if (elementId !== -1) {
+                const obj = { ...elements.data[elementId] }
+                elements.data = elements.data.filter(el => el !== elements.data[elementId])
+                db[type] = elements
+                await this.writeDb(db);
+                return obj
+            }
+        }
+    },
+
     async readType(type, params) {
         const db = await this.readDb();
         const page = Number.parseInt(params._page);

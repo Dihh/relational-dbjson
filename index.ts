@@ -20,6 +20,10 @@ app.patch('/:type/:id', async (req, res) => {
     res.json(await control.patch(req.params.type, req.body, req.params.id))
 })
 
+app.delete('/:type/:id', async (req, res) => {
+    res.json(await control.delete(req.params.type, req.params.id))
+})
+
 app.get('/:type/:id', async (req, res) => {
     res.json(await control.readTypeId(req.params.type, req.params.id))
 })
