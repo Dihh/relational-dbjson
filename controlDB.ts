@@ -37,55 +37,86 @@ export const control = {
         return obj
     },
 
-    async update(type, obj, id) {
+    async update(type, obj, id, params) {
         const db = await this.readDb();
         delete (obj._id)
-        let elements = db[type]
-        if (elements) {
-            let elementId = elements.data.findIndex(el => el._id == id);
-            if (elementId !== -1) {
-                elements.data[elementId] = { _id: elements.data[elementId]._id, ...obj };
-                Object.keys(elements.data[elementId]).forEach(key =>
-                    elements.data[elementId][key] === undefined || elements.data[elementId][key] === null ? delete elements.data[elementId][key] : {}
-                );
-                db[type] = elements
-                await this.writeDb(db);
-                return elements.data[elementId]
-            }
-        }
+        const elements = id ? [await this.readTypeId(type, id)] : await this.readType(type, params || {})
+        const refElements = elements.filter(el => !!el).map(element => {
+            return db[type].data.find(el => el._id == element._id)
+        });
+        refElements.forEach(element => {
+            Object.keys(element).forEach(key => key != '_id' ? delete (element[key]) : null)
+            Object.keys(obj).forEach(key => element[key] = obj[key])
+            Object.keys(element).forEach(key =>
+                element[key] === undefined || element[key] === null ? delete element[key] : {}
+            );
+        })
+        await this.writeDb(db);
+        return refElements
     },
 
-    async patch(type, obj, id) {
+    async patch(type, obj, id, params) {
         const db = await this.readDb();
         delete (obj._id)
-        let elements = db[type]
-        if (elements) {
-            let elementId = elements.data.findIndex(el => el._id == id);
-            if (elementId !== -1) {
-                elements.data[elementId] = { ...elements.data[elementId], ...obj };
-                Object.keys(elements.data[elementId]).forEach(key =>
-                    elements.data[elementId][key] === undefined || elements.data[elementId][key] === null ? delete elements.data[elementId][key] : {}
-                );
-                db[type] = elements
-                await this.writeDb(db);
-                return elements.data[elementId]
-            }
-        }
+        const elements = id ? [await this.readTypeId(type, id)] : await this.readType(type, params || {})
+        const refElements = elements.filter(el => !!el).map(element => {
+            return db[type].data.find(el => el._id == element._id)
+        });
+        refElements.forEach(element => {
+            Object.keys(obj).forEach(key => element[key] = obj[key])
+            Object.keys(element).forEach(key =>
+                element[key] === undefined || element[key] === null ? delete element[key] : {}
+            );
+        })
+        await this.writeDb(db);
+        return refElements
     },
 
-    async delete(type, id) {
+    async delete(type, id, params) {
+        const cascade = !!params.cascade;
+        delete params.cascade
         const db = await this.readDb();
-        let elements = db[type]
-        if (elements) {
-            let elementId = elements.data.findIndex(el => el._id == id);
-            if (elementId !== -1) {
-                const obj = { ...elements.data[elementId] }
-                elements.data = elements.data.filter(el => el !== elements.data[elementId])
-                db[type] = elements
-                await this.writeDb(db);
-                return obj
+        const elements = id ? [await this.readTypeId(type, id)] : await this.readType(type, params || {})
+        const refElements = elements.filter(el => !!el).map(element => {
+            return db[type].data.find(el => el._id == element._id)
+        });
+        refElements.forEach(element => {
+            let referencied = this.findReferences(db, type, element);
+            if (cascade) {
+                for (let reference of referencied) {
+                    referencied = [...referencied, ...this.findReferences(db, reference.type, reference)]
+                }
+                this.deleteElements(referencied, db)
             }
-        }
+            if (referencied.length > 0 && !cascade) { throw new Error(`Element referencied by ${referencied[0].type}/${referencied[0]._id}`) }
+            element.type = type
+            this.deleteElements([element], db)
+        })
+        await this.writeDb(db);
+        return refElements
+    },
+
+    findReferences(db, type, obj) {
+        let referencies = []
+        Object.keys(db).forEach(key => {
+            db[key].data.forEach(ele => {
+                if (ele[`${type}_id`] === obj._id) {
+                    referencies.push({ type: key, _id: ele._id })
+                }
+            })
+        })
+        return referencies
+    },
+
+    deleteElements(elements, db) {
+        elements.forEach(ele => {
+            if (db[ele.type]) {
+                db[ele.type].data = db[ele.type].data.filter(el => el._id != ele._id)
+                if (db[ele.type].data.length == 0) {
+                    delete (db[ele.type]);
+                }
+            }
+        })
     },
 
     async readType(type, params) {
